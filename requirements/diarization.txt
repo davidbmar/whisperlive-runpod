@@ -1,0 +1,4 @@
+# Diarization dependencies for pyannote.audio
+# These are installed in addition to server.txt requirements
+numpy<2
+pyannote-audio==4.0.2

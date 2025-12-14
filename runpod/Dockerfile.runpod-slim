@@ -1,0 +1,66 @@
+# =============================================================================
+# WhisperLive Docker Image for RunPod GPU Pods (SLIM - No Diarization)
+# =============================================================================
+# Optimized for fast deployment
+# Target size: ~4-5GB (includes cuDNN for GPU acceleration)
+#
+# CUDA Compatibility:
+#   - Uses CUDA 12.4 with cuDNN 9 for broad driver compatibility
+#   - Works with EC2 g4dn (CUDA 13.0 driver) and RunPod
+#   - cuDNN 9 required for faster-whisper/CTranslate2 GPU operations
+# =============================================================================
+
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Install Python and minimal dependencies
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3-pip \
+    python3.10-venv \
+    portaudio19-dev \
+    curl \
+    ffmpeg \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.10 /usr/bin/python3 \
+    && ln -sf /usr/bin/python3 /usr/bin/python
+
+# Update pip
+RUN pip install --no-cache-dir -U "pip>=24"
+
+# Create working directory
+WORKDIR /app
+
+# Install minimal server requirements (no OpenVINO, no openai-whisper)
+COPY requirements/server-runpod.txt /app/
+RUN pip install --no-cache-dir -r server-runpod.txt && rm server-runpod.txt
+
+# Copy WhisperLive application code
+COPY whisper_live /app/whisper_live
+COPY run_server.py /app
+
+# Copy RunPod-specific additions
+COPY runpod/healthcheck.py /app/
+COPY runpod/entrypoint.sh /app/
+
+# Make entrypoint executable
+RUN chmod +x /app/entrypoint.sh
+
+# Environment Configuration
+ENV WHISPER_MODEL="small.en"
+ENV WHISPER_COMPUTE_TYPE="int8"
+ENV WHISPERLIVE_PORT=9090
+ENV HEALTH_CHECK_PORT=9999
+ENV MAX_CLIENTS=4
+ENV MAX_CONNECTION_TIME=600
+ENV LOG_FORMAT="json"
+ENV LOG_LEVEL="INFO"
+
+EXPOSE 9090 9999
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:9999/health || exit 1
+
+ENTRYPOINT ["/app/entrypoint.sh"]
