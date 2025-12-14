@@ -1,25 +1,55 @@
 #!/bin/bash
-# =============================================================================
-# Stop or Terminate RunPod Pod
-# =============================================================================
+#===============================================================================
+# 930-OPS--runpod-stop-terminate.sh
+# Stop or permanently terminate your RunPod pod
+#===============================================================================
 #
 # WHAT THIS SCRIPT DOES:
-#   - By default: Stops the pod (can be restarted later)
-#   - With --terminate: Permanently deletes the pod
+# ----------------------
+# By default: STOPS the pod (can be restarted later, no charges while stopped)
+# With --terminate: PERMANENTLY DELETES the pod (cannot be recovered)
 #
-# Usage: ./scripts/930-OPS--runpod-stop-terminate.sh [--terminate] [--force] [--help]
+# IMPORTANT COST INFO:
+# --------------------
+# - STOPPED pods: No GPU charges, but volume storage still incurs small cost
+# - TERMINATED pods: Completely removed, no ongoing charges
 #
-# Options:
-#   --terminate   Permanently delete the pod (cannot be recovered)
-#   --force       Skip confirmation prompt
-#   --help        Show this help message
+# WHAT YOU'LL SEE:
+# ----------------
+#   ============================================================================
+#   Stopping RunPod Pod
+#   ============================================================================
 #
-# =============================================================================
+#   Pod ID: abc123xyz
+#   Current status: RUNNING
+#
+#   Are you sure you want to stop the pod? (y/N) y
+#
+#   Stopping pod...
+#   Waiting for pod to stop......
+#
+#   ============================================================================
+#   Pod stopped successfully!
+#   ============================================================================
+#
+#   The pod is stopped but can be restarted.
+#   Note: You are NOT charged while the pod is stopped.
+#
+#   To restart: ./scripts/920-OPS--runpod-restart.sh
+#
+# USAGE:
+#   ./scripts/930-OPS--runpod-stop-terminate.sh              # Stop (pause)
+#   ./scripts/930-OPS--runpod-stop-terminate.sh --terminate  # Delete permanently
+#   ./scripts/930-OPS--runpod-stop-terminate.sh --force      # Skip confirmation
+#
+# PREREQUISITES:
+#   - .env configured with RUNPOD_API_KEY and RUNPOD_POD_ID
+#
+#===============================================================================
 
 set -euo pipefail
 
 SCRIPT_NAME="930-OPS--runpod-stop-terminate"
-SCRIPT_VERSION="1.0.0"
 
 # Load common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

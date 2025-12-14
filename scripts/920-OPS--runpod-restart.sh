@@ -1,21 +1,52 @@
 #!/bin/bash
-# =============================================================================
-# Restart RunPod Pod
-# =============================================================================
+#===============================================================================
+# 920-OPS--runpod-restart.sh
+# Restart your RunPod pod
+#===============================================================================
 #
 # WHAT THIS SCRIPT DOES:
-#   1. Stops the current pod
-#   2. Starts it again
-#   3. Waits for it to be running
+# ----------------------
+# Gracefully restarts your RunPod pod by stopping and starting it.
+# This is useful when:
+#   - The container is in a bad state
+#   - You want to reload the model
+#   - You've updated the Docker image and want to pull the latest
 #
-# Usage: ./scripts/920-OPS--runpod-restart.sh [--help]
+# WHAT YOU'LL SEE:
+# ----------------
+#   ============================================================================
+#   Restarting RunPod Pod
+#   ============================================================================
 #
-# =============================================================================
+#   Pod ID: abc123xyz
+#   Current status: RUNNING
+#
+#   [1/3] Stopping pod...
+#   Waiting for pod to stop......
+#   Pod stopped
+#
+#   [2/3] Starting pod...
+#   Start command sent
+#
+#   [3/3] Waiting for pod to be running...
+#   Pod is running
+#
+#   ============================================================================
+#   Pod Restarted Successfully!
+#   ============================================================================
+#
+# USAGE:
+#   ./scripts/920-OPS--runpod-restart.sh
+#
+# PREREQUISITES:
+#   - .env configured with RUNPOD_API_KEY and RUNPOD_POD_ID
+#   - Pod must exist (can be running or stopped)
+#
+#===============================================================================
 
 set -euo pipefail
 
 SCRIPT_NAME="920-OPS--runpod-restart"
-SCRIPT_VERSION="1.0.0"
 
 # Load common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

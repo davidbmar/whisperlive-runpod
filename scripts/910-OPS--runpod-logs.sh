@@ -1,27 +1,50 @@
 #!/bin/bash
-# =============================================================================
-# View RunPod Pod Logs
-# =============================================================================
+#===============================================================================
+# 910-OPS--runpod-logs.sh
+# View RunPod pod logs and status information
+#===============================================================================
 #
 # WHAT THIS SCRIPT DOES:
-#   1. Provides information on how to access pod logs
-#   2. Opens RunPod console for log viewing
+# ----------------------
+# Shows you how to access container logs from your RunPod pod.
+# Note: RunPod's REST API doesn't provide direct log streaming, so this
+# script shows you the available options and fetches status info.
 #
-# Note: RunPod REST API doesn't provide direct log access.
-#       Logs are accessed via the web console or SSH.
+# WHAT YOU'LL SEE:
+# ----------------
+#   Pod ID: abc123xyz
+#   Status: RUNNING
 #
-# Usage: ./scripts/910-OPS--runpod-logs.sh [--help]
+#   How to Access Logs:
+#   1. RunPod Web Console (Recommended):
+#      https://www.runpod.io/console/pods
 #
-# =============================================================================
+#   2. Via Health Check Status Endpoint:
+#      curl -s https://abc123xyz-9999.proxy.runpod.net/status | jq
+#
+#   --- Current Status ---
+#   {
+#     "status": "healthy",
+#     "uptime_seconds": 3600,
+#     "gpu": { "name": "NVIDIA RTX 3090", ... }
+#   }
+#
+# USAGE:
+#   ./scripts/910-OPS--runpod-logs.sh
+#
+# PREREQUISITES:
+#   - .env configured with RUNPOD_API_KEY and RUNPOD_POD_ID
+#
+#===============================================================================
 
 set -euo pipefail
 
 SCRIPT_NAME="910-OPS--runpod-logs"
-SCRIPT_VERSION="1.0.0"
 
 # Load common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/000-LIB--common-functions.sh"
+start_logging "$SCRIPT_NAME"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do

@@ -1,25 +1,54 @@
 #!/bin/bash
-# =============================================================================
-# Show RunPod Pod Status
-# =============================================================================
+#===============================================================================
+# 900-OPS--runpod-status.sh
+# Show detailed RunPod pod status
+#===============================================================================
 #
 # WHAT THIS SCRIPT DOES:
-#   1. Gets current pod status from RunPod API
-#   2. Displays pod details (ID, GPU, status, costs)
-#   3. Shows connection information
+# ----------------------
+# Queries the RunPod API and health endpoints to show you:
+#   - Pod state (RUNNING, STOPPED, EXITED)
+#   - GPU type and allocation
+#   - Container health and WhisperLive readiness
+#   - Connection URLs
+#   - Estimated costs
 #
-# Usage: ./scripts/900-OPS--runpod-status.sh [--help]
+# WHAT YOU'LL SEE:
+# ----------------
+#   ============================================================================
+#   RunPod Pod Status
+#   ============================================================================
 #
-# =============================================================================
+#   --- Pod Information ---
+#     Status:         RUNNING
+#     Pod ID:         abc123xyz
+#     GPU Type:       NVIDIA GeForce RTX 3090
+#
+#   --- Health Status ---
+#     Liveness:       Healthy
+#     Readiness:      Ready
+#
+#   --- Connection URLs ---
+#     WebSocket:      wss://abc123xyz-9090.proxy.runpod.net
+#     Health Check:   https://abc123xyz-9999.proxy.runpod.net/health
+#
+# USAGE:
+#   ./scripts/900-OPS--runpod-status.sh        # Show status
+#   ./scripts/900-OPS--runpod-status.sh --help # Show help
+#
+# PREREQUISITES:
+#   - .env configured with RUNPOD_API_KEY and RUNPOD_POD_ID
+#
+#===============================================================================
 
 set -euo pipefail
 
 SCRIPT_NAME="900-OPS--runpod-status"
-SCRIPT_VERSION="1.0.0"
 
 # Load common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/000-LIB--common-functions.sh"
+start_logging "$SCRIPT_NAME"
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
