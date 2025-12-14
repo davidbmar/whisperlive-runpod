@@ -89,54 +89,20 @@ fi
 print_status "ok" "Pod ID: $POD_ID"
 echo ""
 
-# Wait for pod runtime
-echo -e "${BLUE}[2/3] Waiting for pod runtime...${NC}"
+# Wait for health endpoint (this is the reliable way to check if container is ready)
+# Note: The RunPod API "runtime" field is not reliably populated, so we skip
+# directly to checking the health endpoint which tells us the container is actually running.
+echo -e "${BLUE}[2/2] Waiting for container to be ready...${NC}"
 echo "  Timeout: ${TIMEOUT}s"
 echo ""
 
+HEALTH_URL="https://${POD_ID}-9999.proxy.runpod.net/health"
+echo "  Health URL: $HEALTH_URL"
+echo ""
+
 ELAPSED=0
-LAST_STATUS=""
 
 while [ $ELAPSED -lt $TIMEOUT ]; do
-    RESPONSE=$(curl -s -H "Authorization: Bearer ${RUNPOD_API_KEY}" \
-        "https://rest.runpod.io/v1/pods/${POD_ID}" 2>/dev/null || echo "{}")
-
-    STATUS=$(echo "$RESPONSE" | jq -r '.desiredStatus // "unknown"')
-    MACHINE=$(echo "$RESPONSE" | jq -r '.machine.gpuDisplayName // empty')
-    RUNTIME=$(echo "$RESPONSE" | jq -r '.runtime // empty')
-
-    # Build status line
-    STATUS_LINE="[${ELAPSED}s] Status: $STATUS"
-    [ -n "$MACHINE" ] && STATUS_LINE="$STATUS_LINE | GPU: $MACHINE"
-
-    if [ -n "$RUNTIME" ] && [ "$RUNTIME" != "null" ]; then
-        echo "$STATUS_LINE | Runtime: Ready!"
-        print_status "ok" "Pod runtime is ready"
-        break
-    else
-        echo "$STATUS_LINE | Waiting for runtime..."
-    fi
-
-    sleep 10
-    ELAPSED=$((ELAPSED + 10))
-done
-
-if [ $ELAPSED -ge $TIMEOUT ]; then
-    print_status "error" "Timeout waiting for pod runtime"
-    exit 1
-fi
-echo ""
-
-# Wait for health endpoint
-echo -e "${BLUE}[3/3] Waiting for health endpoint...${NC}"
-HEALTH_URL="https://${POD_ID}-9999.proxy.runpod.net/health"
-echo "  URL: $HEALTH_URL"
-echo ""
-
-HEALTH_TIMEOUT=120
-HEALTH_ELAPSED=0
-
-while [ $HEALTH_ELAPSED -lt $HEALTH_TIMEOUT ]; do
     HEALTH_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$HEALTH_URL" 2>/dev/null || echo "000")
 
     if [ "$HEALTH_CODE" = "200" ]; then
@@ -144,13 +110,13 @@ while [ $HEALTH_ELAPSED -lt $HEALTH_TIMEOUT ]; do
         break
     fi
 
-    echo "  [${HEALTH_ELAPSED}s] HTTP $HEALTH_CODE - waiting..."
+    echo "  [${ELAPSED}s] HTTP $HEALTH_CODE - waiting..."
     sleep 10
-    HEALTH_ELAPSED=$((HEALTH_ELAPSED + 10))
+    ELAPSED=$((ELAPSED + 10))
 done
 
 if [ "$HEALTH_CODE" != "200" ]; then
-    print_status "warn" "Health endpoint not responding (HTTP $HEALTH_CODE)"
+    print_status "warn" "Health endpoint not responding after ${TIMEOUT}s (HTTP $HEALTH_CODE)"
     echo "  Container may still be loading the model. Try again in a minute."
     echo "  Check logs: ./scripts/910-OPS--runpod-logs.sh"
     exit 1
@@ -173,13 +139,12 @@ fi
 echo ""
 
 # Success summary
-TOTAL_TIME=$((ELAPSED + HEALTH_ELAPSED))
 echo "============================================================================"
 echo -e "${GREEN}RunPod Pod is Fully Ready!${NC}"
 echo "============================================================================"
 echo ""
 echo "  Pod ID:       $POD_ID"
-echo "  Ready in:     ${TOTAL_TIME}s"
+echo "  Ready in:     ${ELAPSED}s"
 echo ""
 echo "Connection URLs:"
 echo "  WebSocket:    wss://${POD_ID}-9090.proxy.runpod.net"
