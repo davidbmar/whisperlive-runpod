@@ -1,17 +1,24 @@
 #!/bin/bash
 #===============================================================================
-# 997-SETUP--dashboard-cron.sh
-# Setup cron job for GPU dashboard updates (idempotent)
+# 997-SETUP--gpu-cost-monitor-cron.sh
+# Setup cron to monitor AWS & RunPod GPU costs (idempotent)
 #===============================================================================
 #
 # WHAT THIS SCRIPT DOES:
-#   Adds a cron job to update the GPU Cost Guardian dashboard every 5 minutes.
-#   Safe to run multiple times - it removes any existing job first.
+#   Sets up automatic monitoring of GPU resources on AWS and RunPod.
+#   Every 5 minutes it:
+#   - Checks for running GPU pods/instances
+#   - Tracks costs ($X.XX/hr)
+#   - Updates dashboard with 24-hour activity timeline
+#   - Uploads to S3 for CloudFront hosting
+#
+#   Safe to run multiple times - removes existing job first (idempotent).
 #
 # USAGE:
-#   ./scripts/997-SETUP--dashboard-cron.sh           # Install cron job
-#   ./scripts/997-SETUP--dashboard-cron.sh --remove  # Remove cron job
-#   ./scripts/997-SETUP--dashboard-cron.sh --status  # Check status
+#   ./scripts/997-SETUP--gpu-cost-monitor-cron.sh           # Install & show config
+#   ./scripts/997-SETUP--gpu-cost-monitor-cron.sh --config  # Show configuration
+#   ./scripts/997-SETUP--gpu-cost-monitor-cron.sh --status  # Check cron status
+#   ./scripts/997-SETUP--gpu-cost-monitor-cron.sh --remove  # Remove cron job
 #
 #===============================================================================
 
@@ -44,7 +51,7 @@ show_status() {
     else
         echo -e "${YELLOW}[NOT INSTALLED]${NC} Cron job is not set up"
         echo ""
-        echo "Run: ./scripts/997-SETUP--dashboard-cron.sh"
+        echo "Run: ./scripts/997-SETUP--gpu-cost-monitor-cron.sh"
     fi
 }
 
@@ -62,7 +69,7 @@ show_config() {
     echo "==============================================================================="
     echo ""
     echo "SCRIPTS:"
-    echo "  Cron Setup:      $SCRIPT_DIR/997-SETUP--dashboard-cron.sh"
+    echo "  Cron Setup:      $SCRIPT_DIR/997-SETUP--gpu-cost-monitor-cron.sh"
     echo "  Dashboard Gen:   $DASHBOARD_SCRIPT"
     echo "  Watchdog:        $SCRIPT_DIR/999-WATCHDOG--gpu-cost-guardian.sh"
     echo "  Event Logger:    $SCRIPT_DIR/lib/gpu-event-logger.sh"
