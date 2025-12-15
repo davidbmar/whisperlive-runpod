@@ -16,10 +16,18 @@
 # -----------------------------------
 #   Rule 1: runtime < 20 min        → PROTECTED (boot window, never kill)
 #   Rule 2: runtime > 2 hours       → KILL (safety cap, prevents runaway costs)
-#   Rule 3: health not responding   → WARN only (might be crashed, check manually)
-#   Rule 4: GPU utilization > 5%    → ACTIVE (don't kill, it's working)
-#   Rule 5: idle > 30 min           → KILL (forgotten/unused)
-#   Rule 6: otherwise               → OK (still in grace period)
+#   Rule 3: boot stage 0 or 1       → WARN (still allocating GPU or pulling image)
+#   Rule 4: container running but   → KILL if > 30 min (crashed container)
+#           health not responding
+#   Rule 5: GPU utilization > 5%    → ACTIVE (don't kill, it's working)
+#   Rule 6: idle > 30 min           → KILL (forgotten/unused)
+#   Rule 7: otherwise               → OK (still in grace period)
+#
+# BOOT STAGES (from RunPod API):
+# ------------------------------
+#   Stage 0: Waiting for GPU allocation (machine={})
+#   Stage 1: GPU allocated, pulling image (machine has data, no runtime)
+#   Stage 2: Container running (runtime field exists)
 #
 # USAGE:
 #   ./scripts/999-WATCHDOG--gpu-cost-guardian.sh           # Check and report
@@ -126,6 +134,23 @@ for pod in data:
     name = pod.get('name', 'unnamed')
     created = pod.get('createdAt', '')
 
+    # Boot stage detection
+    machine = pod.get('machine', {})
+    runtime = pod.get('runtime')
+
+    # Determine boot stage:
+    # 0 = waiting for GPU (machine empty)
+    # 1 = GPU allocated, pulling image (machine has data, no runtime)
+    # 2 = container running (runtime exists)
+    if not machine:
+        boot_stage = 0
+    elif runtime is None:
+        boot_stage = 1
+    else:
+        boot_stage = 2
+
+    gpu_name = machine.get('gpuDisplayName', 'pending')
+
     # Calculate runtime
     runtime_min = 0
     if created:
@@ -137,8 +162,8 @@ for pod in data:
         except:
             pass
 
-    print(f'{pod_id}|{status}|{cost}|{name}|{runtime_min:.0f}')
-" | while IFS='|' read -r POD_ID STATUS COST NAME RUNTIME_MIN; do
+    print(f'{pod_id}|{status}|{cost}|{name}|{runtime_min:.0f}|{boot_stage}|{gpu_name}')
+" | while IFS='|' read -r POD_ID STATUS COST NAME RUNTIME_MIN BOOT_STAGE GPU_NAME; do
 
         if [ "$STATUS" != "RUNNING" ]; then
             continue
@@ -148,58 +173,74 @@ for pod in data:
         TOTAL_COST_PER_HOUR=$(echo "$TOTAL_COST_PER_HOUR + $COST" | bc 2>/dev/null || echo "$TOTAL_COST_PER_HOUR")
 
         log_info "  Pod: $POD_ID ($NAME)"
-        log_info "    Runtime: ${RUNTIME_MIN} min | Cost: \$${COST}/hr"
+        log_info "    Runtime: ${RUNTIME_MIN} min | Cost: \$${COST}/hr | GPU: ${GPU_NAME}"
 
-        # Check GPU utilization via health endpoint
+        # Show boot stage from API
+        case "$BOOT_STAGE" in
+            0) log_info "    Boot Stage: WAITING FOR GPU (machine not allocated)" ;;
+            1) log_info "    Boot Stage: PULLING IMAGE (GPU allocated, container starting)" ;;
+            2) log_info "    Boot Stage: CONTAINER RUNNING" ;;
+        esac
+
+        # Check GPU utilization via health endpoint (only meaningful if container running)
         GPU_UTIL=0
         HEALTH_RESPONDING=false
-        STATUS_RESP=$(curl -s --max-time 5 "https://${POD_ID}-9999.proxy.runpod.net/status" 2>/dev/null)
-        if [ -n "$STATUS_RESP" ] && echo "$STATUS_RESP" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
-            HEALTH_RESPONDING=true
-            GPU_UTIL=$(echo "$STATUS_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('gpu',{}).get('utilization_percent',0))" 2>/dev/null || echo "0")
-        fi
-
-        if [ "$HEALTH_RESPONDING" = true ]; then
-            log_info "    GPU Utilization: ${GPU_UTIL}%"
-        else
-            log_info "    Health endpoint: NOT RESPONDING (still booting?)"
+        if [ "$BOOT_STAGE" = "2" ]; then
+            STATUS_RESP=$(curl -s --max-time 5 "https://${POD_ID}-9999.proxy.runpod.net/status" 2>/dev/null)
+            if [ -n "$STATUS_RESP" ] && echo "$STATUS_RESP" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
+                HEALTH_RESPONDING=true
+                GPU_UTIL=$(echo "$STATUS_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('gpu',{}).get('utilization_percent',0))" 2>/dev/null || echo "0")
+                log_info "    GPU Utilization: ${GPU_UTIL}%"
+            else
+                log_info "    Health endpoint: NOT RESPONDING (container may have crashed)"
+            fi
         fi
 
         # Decision logic
         SHOULD_KILL=false
         REASON=""
 
-        # Decision logic - simplified with clear priority order
+        # Decision logic - uses boot stage from RunPod API for accuracy
 
         # Rule 1: NEVER kill if under minimum safe runtime (boot protection)
         if [ "${RUNTIME_MIN:-0}" -lt "$MIN_SAFE_RUNTIME_MIN" ]; then
-            if [ "$HEALTH_RESPONDING" = true ]; then
-                log_ok "    Status: STARTING (runtime < ${MIN_SAFE_RUNTIME_MIN} min safe window)"
-            else
-                log_ok "    Status: BOOTING (runtime < ${MIN_SAFE_RUNTIME_MIN} min, health not ready)"
-            fi
+            case "$BOOT_STAGE" in
+                0) log_ok "    Status: PROTECTED (waiting for GPU, runtime < ${MIN_SAFE_RUNTIME_MIN} min)" ;;
+                1) log_ok "    Status: PROTECTED (pulling image, runtime < ${MIN_SAFE_RUNTIME_MIN} min)" ;;
+                2) log_ok "    Status: PROTECTED (just started, runtime < ${MIN_SAFE_RUNTIME_MIN} min)" ;;
+            esac
 
         # Rule 2: Safety cap - kill if running too long (prevents runaway costs)
         elif [ "${RUNTIME_MIN:-0}" -gt $((MAX_RUNTIME_HOURS * 60)) ]; then
             SHOULD_KILL=true
             REASON="exceeded max runtime (${MAX_RUNTIME_HOURS}h safety cap)"
 
-        # Rule 3: Health not responding after safe window - warn but don't auto-kill
-        elif [ "$HEALTH_RESPONDING" = false ]; then
-            log_warn "    Status: UNHEALTHY (health not responding after ${RUNTIME_MIN} min)"
-            log_warn "    Container may have crashed. Check logs: ./scripts/910-OPS--runpod-logs.sh"
-            # Don't auto-kill - might be legitimate slow startup or network issue
+        # Rule 3: Still in early boot stages (API says not running yet)
+        elif [ "$BOOT_STAGE" = "0" ] || [ "$BOOT_STAGE" = "1" ]; then
+            log_warn "    Status: SLOW BOOT (still in stage ${BOOT_STAGE} after ${RUNTIME_MIN} min)"
+            log_warn "    May be stuck. Check RunPod console: https://www.runpod.io/console/pods"
+            # Don't auto-kill - could be slow GPU allocation or large image
 
-        # Rule 4: GPU is active - don't kill
+        # Rule 4: Container running but health not responding - likely crashed
+        elif [ "$BOOT_STAGE" = "2" ] && [ "$HEALTH_RESPONDING" = false ]; then
+            if [ "${RUNTIME_MIN:-0}" -gt "$IDLE_THRESHOLD_MIN" ]; then
+                SHOULD_KILL=true
+                REASON="container crashed (health not responding for ${RUNTIME_MIN} min)"
+            else
+                log_warn "    Status: UNHEALTHY (container running but health not responding)"
+                log_warn "    Will auto-kill after ${IDLE_THRESHOLD_MIN} min if still unresponsive"
+            fi
+
+        # Rule 5: GPU is active - don't kill
         elif [ "${GPU_UTIL:-0}" -gt "$GPU_ACTIVE_THRESHOLD" ]; then
             log_ok "    Status: ACTIVE (GPU ${GPU_UTIL}% in use)"
 
-        # Rule 5: Idle too long - kill
+        # Rule 6: Idle too long - kill
         elif [ "${RUNTIME_MIN:-0}" -gt "$IDLE_THRESHOLD_MIN" ]; then
             SHOULD_KILL=true
             REASON="idle for ${RUNTIME_MIN} min (GPU ${GPU_UTIL}%, threshold: ${IDLE_THRESHOLD_MIN} min)"
 
-        # Rule 6: Running but not idle long enough yet
+        # Rule 7: Running but not idle long enough yet
         else
             log_ok "    Status: OK (idle ${RUNTIME_MIN} min, kill threshold: ${IDLE_THRESHOLD_MIN} min)"
         fi
