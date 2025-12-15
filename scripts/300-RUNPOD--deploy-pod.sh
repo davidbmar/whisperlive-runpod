@@ -175,6 +175,7 @@ POD_PAYLOAD=$(cat <<EOF
     "volumeInGb": ${RUNPOD_VOLUME_GB:-20},
     "volumeMountPath": "/workspace",
     "ports": ["9090/http", "9999/http"],
+    "idleTimeout": ${RUNPOD_IDLE_TIMEOUT:-600},
     "env": {
         "WHISPER_MODEL": "${WHISPER_MODEL:-small.en}",
         "WHISPER_COMPUTE_TYPE": "${WHISPER_COMPUTE_TYPE:-int8}",

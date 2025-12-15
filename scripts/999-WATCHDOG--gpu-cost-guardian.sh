@@ -80,6 +80,11 @@ if [ -f "$ENV_FILE" ]; then
     source "$ENV_FILE"
 fi
 
+# Load event logger for structured JSON logging
+if [ -f "$SCRIPT_DIR/lib/gpu-event-logger.sh" ]; then
+    source "$SCRIPT_DIR/lib/gpu-event-logger.sh"
+fi
+
 RUNPOD_API_KEY="${RUNPOD_API_KEY:-}"
 TOTAL_KILLED=0
 TOTAL_RUNNING=0
@@ -170,6 +175,15 @@ for pod in data:
             log_ok "    Status: OK"
         fi
 
+        # Log the check event
+        if type log_runpod_check &>/dev/null; then
+            CHECK_STATUS="ok"
+            [ "${GPU_UTIL:-0}" -gt "$GPU_ACTIVE_THRESHOLD" ] && CHECK_STATUS="active"
+            [ "${RUNTIME_MIN:-0}" -lt "$MIN_RUNTIME_MIN" ] && CHECK_STATUS="starting"
+            [ "$SHOULD_KILL" = true ] && CHECK_STATUS="idle"
+            log_runpod_check "$POD_ID" "$CHECK_STATUS" "${GPU_UTIL:-0}" "${RUNTIME_MIN:-0}"
+        fi
+
         if [ "$SHOULD_KILL" = true ]; then
             log_warn "    Status: IDLE - $REASON"
 
@@ -179,6 +193,12 @@ for pod in data:
                     "https://rest.runpod.io/v1/pods/${POD_ID}" 2>/dev/null)
                 log_ok "    Terminated: $POD_ID"
                 TOTAL_KILLED=$((TOTAL_KILLED + 1))
+
+                # Log termination event
+                ESTIMATED_COST=$(echo "${RUNTIME_MIN:-0} * ${COST:-0} / 60" | bc -l 2>/dev/null | xargs printf "%.2f" 2>/dev/null || echo "0")
+                if type log_runpod_terminate &>/dev/null; then
+                    log_runpod_terminate "$POD_ID" "$REASON" "${RUNTIME_MIN:-0}" "$ESTIMATED_COST"
+                fi
             else
                 log_warn "    Would terminate (run with --kill to execute)"
             fi
@@ -318,6 +338,16 @@ main() {
         if [ "$TOTAL_KILLED" -gt 0 ]; then
             log_warn "Terminated $TOTAL_KILLED idle GPU resource(s)"
         fi
+    fi
+
+    # Generate and upload dashboard
+    DASHBOARD_SCRIPT="$SCRIPT_DIR/998-DASHBOARD--generate-gpu-status.sh"
+    if [ -x "$DASHBOARD_SCRIPT" ]; then
+        if [ "$CRON_MODE" = false ]; then
+            echo ""
+            echo "Updating dashboard..."
+        fi
+        "$DASHBOARD_SCRIPT" 2>/dev/null
     fi
 }
 
