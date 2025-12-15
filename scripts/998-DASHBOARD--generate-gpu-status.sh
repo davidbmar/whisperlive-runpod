@@ -739,7 +739,10 @@ if sessions:
         time_range = f'{start.strftime("%H:%M")} - {end.strftime("%H:%M") if not is_running else "now"}'
         status_indicator = ' <span style="color:#10b981;">● LIVE</span>' if is_running else ' <span style="color:#ef4444;">■ ended</span>'
 
-        print(f'<div class="timeline-label">{name}{status_indicator} <span style="color:#6b7280; font-size: 11px;">({pod_id[:8]}) {time_range} ({duration_str})</span></div>')
+        # Only show pod_id in parens if name is different (avoid "abc123 (abc123)")
+        id_display = f' ({pod_id[:8]})' if name != pod_id[:8] and name != pod_id else ''
+
+        print(f'<div class="timeline-label">{name}{status_indicator} <span style="color:#6b7280; font-size: 11px;">{id_display} {time_range} ({duration_str})</span></div>')
         print(f'<div class="timeline-track">')
         print(f'    <div class="timeline-bar {bar_class}" style="left: {start_pct:.1f}%; width: {width_pct:.1f}%;" title="{name}: {time_range} ({duration_str})">')
         print(f'        {duration_str}')

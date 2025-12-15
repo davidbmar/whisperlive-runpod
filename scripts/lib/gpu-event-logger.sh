@@ -64,9 +64,15 @@ log_runpod_check() {
     local STATUS="$2"           # active, idle, starting
     local GPU_UTIL="$3"
     local RUNTIME_MIN="$4"
+    local POD_NAME="${5:-}"     # Optional pod name
 
-    log_gpu_event "idle_check" "runpod" "$POD_ID" "checked" \
-        "{\"status\":\"${STATUS}\",\"gpu_util\":${GPU_UTIL},\"runtime_min\":${RUNTIME_MIN}}"
+    if [ -n "$POD_NAME" ]; then
+        log_gpu_event "idle_check" "runpod" "$POD_ID" "checked" \
+            "{\"status\":\"${STATUS}\",\"gpu_util\":${GPU_UTIL},\"runtime_min\":${RUNTIME_MIN},\"name\":\"${POD_NAME}\"}"
+    else
+        log_gpu_event "idle_check" "runpod" "$POD_ID" "checked" \
+            "{\"status\":\"${STATUS}\",\"gpu_util\":${GPU_UTIL},\"runtime_min\":${RUNTIME_MIN}}"
+    fi
 }
 
 # Log AWS instance start
