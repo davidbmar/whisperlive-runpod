@@ -156,6 +156,11 @@ echo -e "${BLUE}${ACTION} pod...${NC}"
 if [ "$TERMINATE" = true ]; then
     if terminate_runpod_pod "$POD_ID" &>/dev/null; then
         print_status "ok" "Terminate command sent"
+        # Log termination event for dashboard
+        if [ -f "$SCRIPT_DIR/lib/gpu-event-logger.sh" ]; then
+            source "$SCRIPT_DIR/lib/gpu-event-logger.sh"
+            log_runpod_terminate "$POD_ID" "user-terminated"
+        fi
         # Remove local state
         rm -f "$POD_FILE"
         update_env_file "RUNPOD_POD_ID" ""
@@ -169,6 +174,11 @@ if [ "$TERMINATE" = true ]; then
 else
     if stop_runpod_pod "$POD_ID" &>/dev/null; then
         print_status "ok" "Stop command sent"
+        # Log stop event for dashboard
+        if [ -f "$SCRIPT_DIR/lib/gpu-event-logger.sh" ]; then
+            source "$SCRIPT_DIR/lib/gpu-event-logger.sh"
+            log_runpod_terminate "$POD_ID" "user-stopped"
+        fi
     else
         print_status "error" "Failed to stop pod"
         exit 1

@@ -227,6 +227,12 @@ fi
 # Update env file with pod ID
 update_env_file "RUNPOD_POD_ID" "$POD_ID"
 print_status "ok" "Pod created: $POD_ID"
+
+# Log pod creation event for dashboard
+if [ -f "$SCRIPT_DIR/lib/gpu-event-logger.sh" ]; then
+    source "$SCRIPT_DIR/lib/gpu-event-logger.sh"
+    log_runpod_start "$POD_ID" "$RUNPOD_POD_NAME" "$RUNPOD_GPU_TYPE"
+fi
 echo ""
 
 # ============================================================================

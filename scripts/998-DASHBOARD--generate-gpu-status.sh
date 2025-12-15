@@ -85,125 +85,325 @@ cat > "$OUTPUT_FILE" << 'HTMLHEADER'
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GPU Cost Guardian Dashboard</title>
+    <title>GPU Cost Guardian</title>
     <meta http-equiv="refresh" content="300">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #0d1117;
-            color: #c9d1d9;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
             padding: 20px;
             line-height: 1.6;
         }
-        .container { max-width: 1200px; margin: 0 auto; }
-        h1 {
-            color: #58a6ff;
-            border-bottom: 1px solid #30363d;
-            padding-bottom: 10px;
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 20px;
         }
+        .logo {
+            display: flex;
+            align-items: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .logo i {
+            margin-right: 0.5rem;
+            font-size: 1.8rem;
+        }
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #667eea;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+        .nav-link:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
         h2 {
-            color: #8b949e;
+            color: white;
             font-size: 14px;
             text-transform: uppercase;
-            margin: 20px 0 10px;
+            margin: 25px 0 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
+        h2 i { font-size: 16px; }
         .summary-cards {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
         .card {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 6px;
-            padding: 16px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
-        .card-title { color: #8b949e; font-size: 12px; }
-        .card-value { color: #58a6ff; font-size: 28px; font-weight: bold; }
-        .card-value.cost { color: #f85149; }
-        .card-value.running { color: #3fb950; }
-        .card-value.ok { color: #3fb950; }
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 12px;
+        }
+        .card-icon.gpu { background: linear-gradient(45deg, #667eea, #764ba2); color: white; }
+        .card-icon.runpod { background: linear-gradient(45deg, #6e40c9, #9333ea); color: white; }
+        .card-icon.aws { background: linear-gradient(45deg, #ff9900, #ffb84d); color: white; }
+        .card-icon.cost { background: linear-gradient(45deg, #ef4444, #f87171); color: white; }
+        .card-title { color: #6b7280; font-size: 13px; margin-bottom: 4px; }
+        .card-value { color: #1f2937; font-size: 32px; font-weight: bold; }
+        .card-value.cost { color: #ef4444; }
+        .card-value.running { color: #10b981; }
         .resource-table {
             width: 100%;
             border-collapse: collapse;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
         }
         .resource-table th, .resource-table td {
-            padding: 10px 12px;
+            padding: 14px 16px;
             text-align: left;
-            border-bottom: 1px solid #30363d;
         }
         .resource-table th {
-            background: #161b22;
-            color: #8b949e;
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
             font-size: 12px;
             text-transform: uppercase;
+            font-weight: 600;
+        }
+        .resource-table tr:not(:last-child) td {
+            border-bottom: 1px solid #e5e7eb;
         }
         .status-badge {
             display: inline-block;
-            padding: 2px 8px;
-            border-radius: 12px;
+            padding: 4px 12px;
+            border-radius: 20px;
             font-size: 12px;
-            font-weight: 500;
+            font-weight: 600;
         }
-        .status-running { background: #238636; color: white; }
-        .status-idle { background: #9e6a03; color: white; }
-        .status-terminated { background: #f85149; color: white; }
+        .status-running { background: #d1fae5; color: #059669; }
+        .status-idle { background: #fef3c7; color: #d97706; }
+        .status-terminated { background: #fee2e2; color: #dc2626; }
         .provider-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 500;
-        }
-        .provider-runpod { background: #6e40c9; color: white; }
-        .provider-aws { background: #ff9900; color: black; }
-        .event-log {
-            background: #0d1117;
-            border: 1px solid #30363d;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
             border-radius: 6px;
-            padding: 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .provider-runpod { background: #ede9fe; color: #7c3aed; }
+        .provider-aws { background: #fff7ed; color: #ea580c; }
+        .event-log {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 16px;
             max-height: 400px;
             overflow-y: auto;
             font-family: 'Monaco', 'Menlo', monospace;
             font-size: 12px;
         }
         .event-row {
-            padding: 4px 8px;
-            border-bottom: 1px solid #21262d;
+            padding: 8px 12px;
+            border-bottom: 1px solid #e5e7eb;
         }
-        .event-row:hover { background: #161b22; }
-        .event-time { color: #8b949e; }
-        .event-action-created { color: #3fb950; }
-        .event-action-terminated { color: #f85149; }
-        .event-action-checked { color: #58a6ff; }
+        .event-row:hover { background: rgba(102, 126, 234, 0.05); }
+        .event-time { color: #6b7280; margin-right: 8px; }
+        .event-action-created { color: #10b981; font-weight: 600; }
+        .event-action-terminated { color: #ef4444; font-weight: 600; }
+        .event-action-checked { color: #667eea; font-weight: 600; }
         .timestamp {
-            color: #8b949e;
-            font-size: 12px;
-            margin-top: 20px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 13px;
+            margin-top: 25px;
             text-align: center;
         }
+        .timestamp a { color: white; }
         .no-data {
-            color: #8b949e;
+            color: #6b7280;
             text-align: center;
             padding: 40px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            margin-bottom: 20px;
         }
         .cost-warning {
-            background: #f8514922;
-            border: 1px solid #f85149;
-            border-radius: 6px;
-            padding: 12px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            border-radius: 12px;
+            padding: 16px;
             margin-bottom: 20px;
-            color: #f85149;
+            color: #dc2626;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
+        .settings-table td { padding: 8px 0; }
+        .settings-table td:first-child { color: #6b7280; }
+        .rule-ok { color: #10b981; }
+        .rule-warn { color: #f59e0b; }
+        .rule-kill { color: #ef4444; }
+        .code-block {
+            background: #1f2937;
+            color: #e5e7eb;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+        .timeline-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .timeline-track {
+            position: relative;
+            height: 40px;
+            background: #f3f4f6;
+            border-radius: 8px;
+            margin: 8px 0;
+            overflow: hidden;
+        }
+        .timeline-bar {
+            position: absolute;
+            height: 100%;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+            white-space: nowrap;
+        }
+        .timeline-bar.runpod { background: linear-gradient(90deg, #7c3aed, #9333ea); }
+        .timeline-bar.aws { background: linear-gradient(90deg, #ea580c, #f97316); }
+        .timeline-bar.running {
+            background: linear-gradient(90deg, #10b981, #34d399);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        /* Start/end markers */
+        .timeline-bar::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: -2px;
+            bottom: -2px;
+            width: 6px;
+            background: #10b981;
+            border-radius: 3px;
+            box-shadow: 0 0 4px rgba(16, 185, 129, 0.5);
+        }
+        .timeline-bar.ended::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: -2px;
+            bottom: -2px;
+            width: 6px;
+            background: #ef4444;
+            border-radius: 3px;
+            box-shadow: 0 0 4px rgba(239, 68, 68, 0.5);
+        }
+        .timeline-bar.running::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: -2px;
+            bottom: -2px;
+            width: 6px;
+            background: #10b981;
+            border-radius: 3px;
+            box-shadow: 0 0 6px rgba(16, 185, 129, 0.8);
+            animation: pulse 1s infinite;
+        }
+        .timeline-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 4px;
+        }
+        .timeline-hours {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #9ca3af;
+            padding: 0 2px;
+        }
+        .timeline-legend {
+            display: flex;
+            gap: 16px;
+            margin-top: 12px;
+            font-size: 12px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 4px;
+        }
+        .legend-dot.runpod { background: #7c3aed; }
+        .legend-dot.aws { background: #ea580c; }
+        .legend-dot.running { background: #10b981; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🛡️ GPU Cost Guardian Dashboard</h1>
+        <div class="header">
+            <div class="logo">
+                <i class="fas fa-shield-alt"></i>
+                GPU Cost Guardian
+            </div>
+            <a href="https://d2l28rla2hk7np.cloudfront.net/index.html" class="nav-link">
+                <i class="fas fa-arrow-left"></i>
+                Back to CloudDrive
+            </a>
+        </div>
 HTMLHEADER
 
 # Add summary cards
@@ -222,20 +422,15 @@ print(f'{total:.2f}')
 cat >> "$OUTPUT_FILE" << HTMLSUMMARY
         <div class="summary-cards">
             <div class="card">
-                <div class="card-title">GPUs Running</div>
-                <div class="card-value running">${TOTAL_RUNNING}</div>
+                <div class="card-icon gpu"><i class="fas fa-microchip"></i></div>
+                <div class="card-title">Running Now</div>
+                <div class="card-value ${TOTAL_RUNNING:+running}">${TOTAL_RUNNING} GPU${TOTAL_RUNNING:+s}</div>
+                <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">${RUNPOD_COUNT} RunPod · ${AWS_COUNT} AWS</div>
             </div>
             <div class="card">
-                <div class="card-title">RunPod Pods</div>
-                <div class="card-value">${RUNPOD_COUNT}</div>
-            </div>
-            <div class="card">
-                <div class="card-title">AWS Instances</div>
-                <div class="card-value">${AWS_COUNT}</div>
-            </div>
-            <div class="card">
-                <div class="card-title">Current Cost/Hour</div>
-                <div class="card-value cost">\$${HOURLY_COST}</div>
+                <div class="card-icon cost"><i class="fas fa-dollar-sign"></i></div>
+                <div class="card-title">Current Cost</div>
+                <div class="card-value cost">\$${HOURLY_COST}/hr</div>
             </div>
         </div>
 HTMLSUMMARY
@@ -250,12 +445,11 @@ if [ "$TOTAL_RUNNING" -gt 0 ]; then
 HTMLWARN
 fi
 
-# Add RunPod table
-cat >> "$OUTPUT_FILE" << 'HTMLRUNPOD'
-        <h2>RunPod Pods</h2>
-HTMLRUNPOD
-
+# Only show RunPod table if pods are running
 if [ "$RUNPOD_COUNT" -gt 0 ]; then
+cat >> "$OUTPUT_FILE" << 'HTMLRUNPOD'
+        <h2><i class="fas fa-server"></i> Active RunPod Pods</h2>
+HTMLRUNPOD
     cat >> "$OUTPUT_FILE" << 'HTMLTABLE1'
         <table class="resource-table">
             <tr>
@@ -293,16 +487,13 @@ for pod in data:
 " >> "$OUTPUT_FILE"
 
     echo "        </table>" >> "$OUTPUT_FILE"
-else
-    echo '        <div class="no-data">No RunPod pods running ✓</div>' >> "$OUTPUT_FILE"
 fi
 
-# Add AWS table
-cat >> "$OUTPUT_FILE" << 'HTMLAWS'
-        <h2>AWS GPU Instances</h2>
-HTMLAWS
-
+# Only show AWS table if instances are running
 if [ "$AWS_COUNT" -gt 0 ]; then
+cat >> "$OUTPUT_FILE" << 'HTMLAWS'
+        <h2><i class="fab fa-aws"></i> Active AWS GPU Instances</h2>
+HTMLAWS
     cat >> "$OUTPUT_FILE" << 'HTMLTABLE2'
         <table class="resource-table">
             <tr>
@@ -336,13 +527,230 @@ for inst in data:
 " >> "$OUTPUT_FILE"
 
     echo "        </table>" >> "$OUTPUT_FILE"
-else
-    echo '        <div class="no-data">No AWS GPU instances running ✓</div>' >> "$OUTPUT_FILE"
 fi
+
+# Add 24h timeline visualization
+cat >> "$OUTPUT_FILE" << 'HTMLTIMELINE'
+        <h2><i class="fas fa-chart-gantt"></i> Pod Activity Timeline (24h)</h2>
+        <div class="timeline-container">
+            <div class="timeline-header">
+                <span>24 hours ago</span>
+                <span>Now</span>
+            </div>
+HTMLTIMELINE
+
+# Generate timeline from event log and RunPod API
+TIMELINE_OUTPUT=$(python3 << TIMELINE_SCRIPT
+import json
+import sys
+import os
+import subprocess
+from datetime import datetime, timedelta
+from collections import defaultdict
+
+EVENT_LOG = "${EVENT_LOG}"
+RUNPOD_API_KEY = "${RUNPOD_API_KEY}"
+
+# Read event log
+events = []
+try:
+    with open(EVENT_LOG, 'r') as f:
+        for line in f:
+            try:
+                events.append(json.loads(line.strip()))
+            except:
+                pass
+except:
+    pass
+
+now = datetime.utcnow()
+start_time = now - timedelta(hours=24)
+
+# Track pod activity from ALL event types (including "checked")
+pod_activity = defaultdict(list)  # pod_id -> list of {time, status, provider}
+
+# Get currently running pods from RunPod API
+running_pods = {}
+if RUNPOD_API_KEY:
+    try:
+        result = subprocess.run(
+            ['curl', '-s', '-H', f'Authorization: Bearer {RUNPOD_API_KEY}',
+             'https://rest.runpod.io/v1/pods'],
+            capture_output=True, text=True, timeout=10
+        )
+        pods = json.loads(result.stdout)
+        for pod in pods:
+            pod_id = pod.get('id', '')
+            created = pod.get('createdAt', '')
+            name = pod.get('name', pod_id[:8])
+            status = pod.get('desiredStatus', 'unknown')
+            running_pods[pod_id] = {'name': name, 'created': created, 'status': status}
+    except:
+        pass
+
+# Parse ALL events to build activity timeline
+for event in sorted(events, key=lambda x: x.get('timestamp', '')):
+    ts_str = event.get('timestamp', '')
+    try:
+        ts = datetime.fromisoformat(ts_str.replace('Z', '+00:00').replace('+00:00', ''))
+    except:
+        continue
+
+    pod_id = event.get('resource_id', '')
+    if not pod_id:
+        continue
+
+    action = event.get('action', '')
+    provider = event.get('provider', 'runpod')
+    details = event.get('details', {})
+    status = details.get('status', action)
+    name = details.get('name', pod_id[:8])
+
+    pod_activity[pod_id].append({
+        'time': ts,
+        'action': action,
+        'status': status,
+        'provider': provider,
+        'name': name
+    })
+
+# Build sessions from activity data
+sessions = {}
+for pod_id, activities in pod_activity.items():
+    if not activities:
+        continue
+
+    # Sort by time
+    activities.sort(key=lambda x: x['time'])
+
+    # Find first and last activity within 24h window
+    first_in_window = None
+    last_in_window = None
+    provider = 'runpod'
+    name = pod_id[:8]
+
+    for act in activities:
+        if act['time'] >= start_time:
+            if first_in_window is None:
+                first_in_window = act['time']
+            last_in_window = act['time']
+            provider = act['provider']
+            name = act.get('name', pod_id[:8])
+
+    if first_in_window:
+        # Check if pod is still running
+        is_running = pod_id in running_pods and running_pods[pod_id]['status'] == 'RUNNING'
+
+        # If we have activity, estimate session duration
+        # Use first seen as start, last seen (or now if running) as end
+        sessions[pod_id] = {
+            'start': first_in_window,
+            'end': now if is_running else last_in_window + timedelta(minutes=15),  # Add buffer for last check
+            'provider': provider,
+            'name': name if name != pod_id[:8] else running_pods.get(pod_id, {}).get('name', pod_id[:8]),
+            'running': is_running
+        }
+
+# Add currently running pods that might not be in event log
+for pod_id, info in running_pods.items():
+    if info['status'] != 'RUNNING':
+        continue
+    if pod_id not in sessions:
+        try:
+            created = datetime.fromisoformat(info['created'].replace('Z', '+00:00').replace('+00:00', ''))
+            if created < start_time:
+                created = start_time
+            sessions[pod_id] = {
+                'start': created,
+                'end': now,
+                'provider': 'runpod',
+                'name': info['name'],
+                'running': True
+            }
+        except:
+            pass
+
+# Generate hour markers
+hours = []
+for i in range(0, 25, 6):
+    t = start_time + timedelta(hours=i)
+    hours.append(t.strftime('%H:%M'))
+
+print('<div class="timeline-hours">')
+for h in hours:
+    print(f'<span>{h}</span>')
+print('</div>')
+
+# Generate timeline bars
+if sessions:
+    # Summary stats
+    total_pods = len(sessions)
+    running_count = sum(1 for s in sessions.values() if s.get('running'))
+    total_minutes = sum((s['end'] - s['start']).total_seconds() / 60 for s in sessions.values())
+
+    print(f'<div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 12px; margin-bottom: 16px; display: flex; gap: 24px; flex-wrap: wrap;">')
+    print(f'    <div><strong style="color: #166534;">{total_pods}</strong> <span style="color: #4b5563;">pod(s) ran in last 24h</span></div>')
+    print(f'    <div><strong style="color: #166534;">{int(total_minutes)}</strong> <span style="color: #4b5563;">total GPU minutes</span></div>')
+    if running_count > 0:
+        print(f'    <div><strong style="color: #059669;">{running_count}</strong> <span style="color: #4b5563;">currently running</span></div>')
+    print(f'</div>')
+
+    for pod_id, session in sorted(sessions.items(), key=lambda x: x[1]['start']):
+        start = session['start']
+        end = session['end'] or now
+        provider = session['provider']
+        name = session['name']
+        is_running = session.get('running', False)
+
+        # Calculate position as percentage of 24h window
+        start_pct = max(0, (start - start_time).total_seconds() / (24 * 3600) * 100)
+        end_pct = min(100, (end - start_time).total_seconds() / (24 * 3600) * 100)
+        width_pct = end_pct - start_pct
+
+        # Minimum 4% width so bars are always visible
+        if width_pct < 4:
+            width_pct = 4
+
+        bar_class = 'running' if is_running else f'{provider} ended'
+        duration = end - start
+        duration_str = f'{int(duration.total_seconds() / 60)}m'
+        if duration.total_seconds() >= 3600:
+            duration_str = f'{duration.total_seconds() / 3600:.1f}h'
+
+        # Time range for display
+        time_range = f'{start.strftime("%H:%M")} - {end.strftime("%H:%M") if not is_running else "now"}'
+        status_indicator = ' <span style="color:#10b981;">● LIVE</span>' if is_running else ' <span style="color:#ef4444;">■ ended</span>'
+
+        print(f'<div class="timeline-label">{name}{status_indicator} <span style="color:#6b7280; font-size: 11px;">({pod_id[:8]}) {time_range} ({duration_str})</span></div>')
+        print(f'<div class="timeline-track">')
+        print(f'    <div class="timeline-bar {bar_class}" style="left: {start_pct:.1f}%; width: {width_pct:.1f}%;" title="{name}: {time_range} ({duration_str})">')
+        print(f'        {duration_str}')
+        print(f'    </div>')
+        print(f'</div>')
+else:
+    print('<div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 12px; margin-bottom: 16px; text-align: center; color: #166534;">')
+    print('    <i class="fas fa-check-circle"></i> No GPU pods running - $0.00/hr cost')
+    print('</div>')
+    print('<div class="no-data" style="margin: 20px 0;">No pod activity recorded in the last 24 hours</div>')
+
+print('<div class="timeline-legend">')
+print('    <div class="legend-item"><div style="width:4px;height:12px;background:#10b981;border-radius:2px;"></div> Started</div>')
+print('    <div class="legend-item"><div style="width:4px;height:12px;background:#ef4444;border-radius:2px;"></div> Stopped</div>')
+print('    <div class="legend-item"><div class="legend-dot runpod"></div> RunPod</div>')
+print('    <div class="legend-item"><div class="legend-dot aws"></div> AWS</div>')
+print('    <div class="legend-item"><div class="legend-dot running"></div> Running Now</div>')
+print('</div>')
+TIMELINE_SCRIPT
+)
+echo "$TIMELINE_OUTPUT" >> "$OUTPUT_FILE"
+
+cat >> "$OUTPUT_FILE" << 'HTMLTIMELINEEND'
+        </div>
+HTMLTIMELINEEND
 
 # Add event log
 cat >> "$OUTPUT_FILE" << 'HTMLEVENTS'
-        <h2>Recent Events (24h)</h2>
+        <h2><i class="fas fa-history"></i> Recent Events (24h)</h2>
         <div class="event-log">
 HTMLEVENTS
 
@@ -393,57 +801,75 @@ fi
 cat >> "$OUTPUT_FILE" << 'HTMLSETTINGS'
         </div>
 
-        <h2>Watchdog Settings</h2>
+        <h2><i class="fas fa-cog"></i> Watchdog Settings</h2>
         <div class="card" style="margin-bottom: 20px;">
-            <table style="width: 100%; font-size: 14px;">
-                <tr><td style="color: #8b949e; padding: 4px 0;">Min Safe Runtime:</td><td>20 min (never kill during boot)</td></tr>
-                <tr><td style="color: #8b949e; padding: 4px 0;">Idle Threshold:</td><td>30 min (kill if idle longer)</td></tr>
-                <tr><td style="color: #8b949e; padding: 4px 0;">Max Runtime:</td><td>2 hours (safety cap)</td></tr>
-                <tr><td style="color: #8b949e; padding: 4px 0;">GPU Active Threshold:</td><td>&gt;5% utilization</td></tr>
+            <table class="settings-table" style="width: 100%; font-size: 14px;">
+                <tr><td><i class="fas fa-clock"></i> Min Safe Runtime:</td><td>20 min (never kill during boot)</td></tr>
+                <tr><td><i class="fas fa-hourglass-half"></i> Idle Threshold:</td><td>30 min (kill if idle longer)</td></tr>
+                <tr><td><i class="fas fa-stopwatch"></i> Max Runtime:</td><td>2 hours (safety cap)</td></tr>
+                <tr><td><i class="fas fa-tachometer-alt"></i> GPU Active Threshold:</td><td>&gt;5% utilization</td></tr>
             </table>
         </div>
 
-        <h2>Decision Rules</h2>
-        <div class="card" style="margin-bottom: 20px; font-size: 13px; font-family: monospace;">
-            <div style="padding: 2px 0;"><span style="color: #3fb950;">Rule 1:</span> runtime &lt; 20 min → PROTECTED (boot window)</div>
-            <div style="padding: 2px 0;"><span style="color: #f85149;">Rule 2:</span> runtime &gt; 2 hours → KILL (safety cap)</div>
-            <div style="padding: 2px 0;"><span style="color: #d29922;">Rule 3:</span> boot stage 0 or 1 → WARN (still allocating/pulling)</div>
-            <div style="padding: 2px 0;"><span style="color: #f85149;">Rule 4:</span> container crashed &gt; 30 min → KILL</div>
-            <div style="padding: 2px 0;"><span style="color: #3fb950;">Rule 5:</span> GPU &gt; 5% → ACTIVE (don't kill)</div>
-            <div style="padding: 2px 0;"><span style="color: #f85149;">Rule 6:</span> idle &gt; 30 min → KILL (forgotten)</div>
-            <div style="padding: 2px 0;"><span style="color: #3fb950;">Rule 7:</span> otherwise → OK (grace period)</div>
+        <h2><i class="fas fa-gavel"></i> Decision Rules</h2>
+        <div class="card" style="margin-bottom: 20px; font-size: 13px; font-family: 'Monaco', 'Menlo', monospace;">
+            <div style="padding: 6px 0;"><span class="rule-ok"><i class="fas fa-shield-alt"></i> Rule 1:</span> runtime &lt; 20 min → <strong>PROTECTED</strong> (boot window)</div>
+            <div style="padding: 6px 0;"><span class="rule-kill"><i class="fas fa-skull"></i> Rule 2:</span> runtime &gt; 2 hours → <strong>KILL</strong> (safety cap)</div>
+            <div style="padding: 6px 0;"><span class="rule-warn"><i class="fas fa-exclamation-triangle"></i> Rule 3:</span> boot stage 0 or 1 → <strong>WARN</strong> (still allocating/pulling)</div>
+            <div style="padding: 6px 0;"><span class="rule-kill"><i class="fas fa-times-circle"></i> Rule 4:</span> container crashed &gt; 30 min → <strong>KILL</strong></div>
+            <div style="padding: 6px 0;"><span class="rule-ok"><i class="fas fa-bolt"></i> Rule 5:</span> GPU &gt; 5% → <strong>ACTIVE</strong> (don't kill)</div>
+            <div style="padding: 6px 0;"><span class="rule-kill"><i class="fas fa-bed"></i> Rule 6:</span> idle &gt; 30 min → <strong>KILL</strong> (forgotten)</div>
+            <div style="padding: 6px 0;"><span class="rule-ok"><i class="fas fa-check-circle"></i> Rule 7:</span> otherwise → <strong>OK</strong> (grace period)</div>
         </div>
 
-        <h2>Setup &amp; Access</h2>
+        <h2><i class="fas fa-terminal"></i> Setup &amp; Access</h2>
         <div class="card" style="margin-bottom: 20px; font-size: 13px;">
-            <p style="margin-bottom: 10px;"><strong>Run watchdog manually:</strong></p>
-            <code style="background: #0d1117; padding: 8px; display: block; border-radius: 4px; margin-bottom: 15px;">
-./scripts/999-WATCHDOG--gpu-cost-guardian.sh --kill
-            </code>
+            <p style="margin-bottom: 8px;"><strong><i class="fas fa-play"></i> Run watchdog manually:</strong></p>
+            <div class="code-block">./scripts/999-WATCHDOG--gpu-cost-guardian.sh --kill</div>
 
-            <p style="margin-bottom: 10px;"><strong>Setup cron (every 15 min):</strong></p>
-            <code style="background: #0d1117; padding: 8px; display: block; border-radius: 4px; margin-bottom: 15px; font-size: 11px; word-break: break-all;">
-*/15 * * * * /home/ubuntu/event-b/whisperlive-runpod/scripts/999-WATCHDOG--gpu-cost-guardian.sh --kill --cron &gt;&gt; /var/log/gpu-watchdog.log 2&gt;&amp;1
-            </code>
+            <p style="margin-bottom: 8px; margin-top: 16px;"><strong><i class="fas fa-clock"></i> Setup cron (every 15 min):</strong></p>
+            <div class="code-block" style="font-size: 11px;">*/15 * * * * /home/ubuntu/event-b/whisperlive-runpod/scripts/999-WATCHDOG--gpu-cost-guardian.sh --kill --cron &gt;&gt; /var/log/gpu-watchdog.log 2&gt;&amp;1</div>
 
-            <p style="margin-bottom: 10px;"><strong>Enable S3 upload (add to .env):</strong></p>
-            <code style="background: #0d1117; padding: 8px; display: block; border-radius: 4px; margin-bottom: 15px;">
-GPU_DASHBOARD_S3_BUCKET=s3://your-bucket/gpu-dashboard/
-            </code>
+            <p style="margin-bottom: 8px; margin-top: 16px;"><strong><i class="fab fa-aws"></i> Enable S3 upload (add to .env):</strong></p>
+            <div class="code-block">GPU_DASHBOARD_S3_BUCKET=s3://your-bucket/gpu-dashboard/</div>
 
-            <p style="margin-bottom: 10px;"><strong>View dashboard locally:</strong></p>
-            <code style="background: #0d1117; padding: 8px; display: block; border-radius: 4px;">
-cd artifacts && python3 -m http.server 8080
-            </code>
+            <p style="margin-bottom: 8px; margin-top: 16px;"><strong><i class="fas fa-desktop"></i> View dashboard locally:</strong></p>
+            <div class="code-block">cd artifacts && python3 -m http.server 8080</div>
         </div>
 HTMLSETTINGS
+
+# Add daily history navigation
+TODAY=$(date -u +"%Y-%m-%d")
+YESTERDAY=$(date -u -d "yesterday" +"%Y-%m-%d" 2>/dev/null || date -u -v-1d +"%Y-%m-%d" 2>/dev/null || echo "")
+TWO_DAYS_AGO=$(date -u -d "2 days ago" +"%Y-%m-%d" 2>/dev/null || date -u -v-2d +"%Y-%m-%d" 2>/dev/null || echo "")
+
+cat >> "$OUTPUT_FILE" << 'HTMLHISTORYNAV'
+
+        <h2><i class="fas fa-calendar-alt"></i> Daily History</h2>
+        <div class="card" style="margin-bottom: 20px;">
+            <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+                <span style="color: #6b7280; font-size: 13px;"><i class="fas fa-clock"></i> View previous days:</span>
+HTMLHISTORYNAV
+
+# Add links for available daily archives
+for i in 1 2 3 4 5 6 7; do
+    PAST_DATE=$(date -u -d "$i days ago" +"%Y-%m-%d" 2>/dev/null || date -u -v-${i}d +"%Y-%m-%d" 2>/dev/null || echo "")
+    if [ -n "$PAST_DATE" ]; then
+        echo "                <a href=\"${PAST_DATE}.html\" class=\"nav-link\" style=\"padding: 6px 12px; font-size: 12px;\"><i class=\"fas fa-file\"></i> ${PAST_DATE}</a>" >> "$OUTPUT_FILE"
+    fi
+done
+
+cat >> "$OUTPUT_FILE" << 'HTMLHISTORYNAVEND'
+            </div>
+        </div>
+HTMLHISTORYNAVEND
 
 cat >> "$OUTPUT_FILE" << HTMLFOOTER
 
         <p class="timestamp">Last updated: ${TIMESTAMP}</p>
         <p class="timestamp">
-            <a href="https://github.com/davidbmar/whisperlive-runpod" style="color: #58a6ff;">
-                GitHub: whisperlive-runpod
+            <a href="https://github.com/davidbmar/whisperlive-runpod">
+                <i class="fab fa-github"></i> GitHub: whisperlive-runpod
             </a>
         </p>
     </div>
@@ -457,17 +883,31 @@ echo "Dashboard generated: $OUTPUT_FILE"
 # Upload to S3 (if configured)
 #===============================================================================
 
+# Also save a daily archive locally
+DAILY_ARCHIVE="$OUTPUT_DIR/gpu-dashboard-${TODAY}.html"
+cp "$OUTPUT_FILE" "$DAILY_ARCHIVE"
+echo "Daily archive: $DAILY_ARCHIVE"
+
 if [ -n "$S3_BUCKET" ]; then
     echo "Uploading to S3: $S3_BUCKET"
+
+    # Upload current dashboard as index.html
     aws s3 cp "$OUTPUT_FILE" "${S3_BUCKET}index.html" \
         --content-type "text/html" \
         --cache-control "max-age=60" \
+        2>/dev/null
+
+    # Also upload as today's dated archive
+    aws s3 cp "$OUTPUT_FILE" "${S3_BUCKET}${TODAY}.html" \
+        --content-type "text/html" \
+        --cache-control "max-age=3600" \
         2>/dev/null
 
     if [ $? -eq 0 ]; then
         # Extract bucket name and region for URL
         BUCKET_NAME=$(echo "$S3_BUCKET" | sed 's|s3://||' | cut -d'/' -f1)
         echo "Dashboard URL: http://${BUCKET_NAME}.s3.amazonaws.com/index.html"
+        echo "Daily archive: http://${BUCKET_NAME}.s3.amazonaws.com/${TODAY}.html"
     else
         echo "Warning: S3 upload failed"
     fi
