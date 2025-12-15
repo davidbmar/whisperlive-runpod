@@ -390,8 +390,55 @@ else
     echo '<div class="no-data">No events logged yet</div>' >> "$OUTPUT_FILE"
 fi
 
-cat >> "$OUTPUT_FILE" << HTMLFOOTER
+cat >> "$OUTPUT_FILE" << 'HTMLSETTINGS'
         </div>
+
+        <h2>Watchdog Settings</h2>
+        <div class="card" style="margin-bottom: 20px;">
+            <table style="width: 100%; font-size: 14px;">
+                <tr><td style="color: #8b949e; padding: 4px 0;">Min Safe Runtime:</td><td>20 min (never kill during boot)</td></tr>
+                <tr><td style="color: #8b949e; padding: 4px 0;">Idle Threshold:</td><td>30 min (kill if idle longer)</td></tr>
+                <tr><td style="color: #8b949e; padding: 4px 0;">Max Runtime:</td><td>2 hours (safety cap)</td></tr>
+                <tr><td style="color: #8b949e; padding: 4px 0;">GPU Active Threshold:</td><td>&gt;5% utilization</td></tr>
+            </table>
+        </div>
+
+        <h2>Decision Rules</h2>
+        <div class="card" style="margin-bottom: 20px; font-size: 13px; font-family: monospace;">
+            <div style="padding: 2px 0;"><span style="color: #3fb950;">Rule 1:</span> runtime &lt; 20 min → PROTECTED (boot window)</div>
+            <div style="padding: 2px 0;"><span style="color: #f85149;">Rule 2:</span> runtime &gt; 2 hours → KILL (safety cap)</div>
+            <div style="padding: 2px 0;"><span style="color: #d29922;">Rule 3:</span> boot stage 0 or 1 → WARN (still allocating/pulling)</div>
+            <div style="padding: 2px 0;"><span style="color: #f85149;">Rule 4:</span> container crashed &gt; 30 min → KILL</div>
+            <div style="padding: 2px 0;"><span style="color: #3fb950;">Rule 5:</span> GPU &gt; 5% → ACTIVE (don't kill)</div>
+            <div style="padding: 2px 0;"><span style="color: #f85149;">Rule 6:</span> idle &gt; 30 min → KILL (forgotten)</div>
+            <div style="padding: 2px 0;"><span style="color: #3fb950;">Rule 7:</span> otherwise → OK (grace period)</div>
+        </div>
+
+        <h2>Setup &amp; Access</h2>
+        <div class="card" style="margin-bottom: 20px; font-size: 13px;">
+            <p style="margin-bottom: 10px;"><strong>Run watchdog manually:</strong></p>
+            <code style="background: #0d1117; padding: 8px; display: block; border-radius: 4px; margin-bottom: 15px;">
+./scripts/999-WATCHDOG--gpu-cost-guardian.sh --kill
+            </code>
+
+            <p style="margin-bottom: 10px;"><strong>Setup cron (every 15 min):</strong></p>
+            <code style="background: #0d1117; padding: 8px; display: block; border-radius: 4px; margin-bottom: 15px; font-size: 11px; word-break: break-all;">
+*/15 * * * * /home/ubuntu/event-b/whisperlive-runpod/scripts/999-WATCHDOG--gpu-cost-guardian.sh --kill --cron &gt;&gt; /var/log/gpu-watchdog.log 2&gt;&amp;1
+            </code>
+
+            <p style="margin-bottom: 10px;"><strong>Enable S3 upload (add to .env):</strong></p>
+            <code style="background: #0d1117; padding: 8px; display: block; border-radius: 4px; margin-bottom: 15px;">
+GPU_DASHBOARD_S3_BUCKET=s3://your-bucket/gpu-dashboard/
+            </code>
+
+            <p style="margin-bottom: 10px;"><strong>View dashboard locally:</strong></p>
+            <code style="background: #0d1117; padding: 8px; display: block; border-radius: 4px;">
+cd artifacts && python3 -m http.server 8080
+            </code>
+        </div>
+HTMLSETTINGS
+
+cat >> "$OUTPUT_FILE" << HTMLFOOTER
 
         <p class="timestamp">Last updated: ${TIMESTAMP}</p>
         <p class="timestamp">
