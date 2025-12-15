@@ -12,12 +12,14 @@
 #   - Checks runtime duration
 #   - Applies safety caps to prevent runaway costs
 #
-# DECISION LOGIC:
-# ---------------
-#   IF gpu_utilization > 5%     → ACTIVE, don't kill
-#   ELSE IF runtime < 10 min    → Just started, don't kill
-#   ELSE IF idle > 15 min       → KILL (forgotten)
-#   ELSE IF runtime > 2 hours   → KILL (safety cap)
+# DECISION LOGIC (in priority order):
+# -----------------------------------
+#   Rule 1: runtime < 20 min        → PROTECTED (boot window, never kill)
+#   Rule 2: runtime > 2 hours       → KILL (safety cap, prevents runaway costs)
+#   Rule 3: health not responding   → WARN only (might be crashed, check manually)
+#   Rule 4: GPU utilization > 5%    → ACTIVE (don't kill, it's working)
+#   Rule 5: idle > 30 min           → KILL (forgotten/unused)
+#   Rule 6: otherwise               → OK (still in grace period)
 #
 # USAGE:
 #   ./scripts/999-WATCHDOG--gpu-cost-guardian.sh           # Check and report
@@ -37,9 +39,9 @@
 set -uo pipefail
 
 # Configuration
-IDLE_THRESHOLD_MIN=15      # Kill if idle longer than this
-MAX_RUNTIME_HOURS=2        # Safety cap - kill anything running longer
-MIN_RUNTIME_MIN=10         # Don't kill pods that just started
+MIN_SAFE_RUNTIME_MIN=20    # NEVER kill anything running less than this (boot + buffer)
+IDLE_THRESHOLD_MIN=30      # Kill if idle longer than this (after MIN_SAFE_RUNTIME_MIN)
+MAX_RUNTIME_HOURS=2        # Safety cap - kill anything running longer (even if "active")
 GPU_ACTIVE_THRESHOLD=5     # GPU utilization % considered "active"
 
 # Parse arguments
@@ -150,36 +152,63 @@ for pod in data:
 
         # Check GPU utilization via health endpoint
         GPU_UTIL=0
+        HEALTH_RESPONDING=false
         STATUS_RESP=$(curl -s --max-time 5 "https://${POD_ID}-9999.proxy.runpod.net/status" 2>/dev/null)
-        if [ -n "$STATUS_RESP" ]; then
+        if [ -n "$STATUS_RESP" ] && echo "$STATUS_RESP" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
+            HEALTH_RESPONDING=true
             GPU_UTIL=$(echo "$STATUS_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('gpu',{}).get('utilization_percent',0))" 2>/dev/null || echo "0")
         fi
 
-        log_info "    GPU Utilization: ${GPU_UTIL}%"
+        if [ "$HEALTH_RESPONDING" = true ]; then
+            log_info "    GPU Utilization: ${GPU_UTIL}%"
+        else
+            log_info "    Health endpoint: NOT RESPONDING (still booting?)"
+        fi
 
         # Decision logic
         SHOULD_KILL=false
         REASON=""
 
-        if [ "${GPU_UTIL:-0}" -gt "$GPU_ACTIVE_THRESHOLD" ]; then
-            log_ok "    Status: ACTIVE (GPU in use)"
-        elif [ "${RUNTIME_MIN:-0}" -lt "$MIN_RUNTIME_MIN" ]; then
-            log_ok "    Status: STARTING (runtime < ${MIN_RUNTIME_MIN} min)"
+        # Decision logic - simplified with clear priority order
+
+        # Rule 1: NEVER kill if under minimum safe runtime (boot protection)
+        if [ "${RUNTIME_MIN:-0}" -lt "$MIN_SAFE_RUNTIME_MIN" ]; then
+            if [ "$HEALTH_RESPONDING" = true ]; then
+                log_ok "    Status: STARTING (runtime < ${MIN_SAFE_RUNTIME_MIN} min safe window)"
+            else
+                log_ok "    Status: BOOTING (runtime < ${MIN_SAFE_RUNTIME_MIN} min, health not ready)"
+            fi
+
+        # Rule 2: Safety cap - kill if running too long (prevents runaway costs)
         elif [ "${RUNTIME_MIN:-0}" -gt $((MAX_RUNTIME_HOURS * 60)) ]; then
             SHOULD_KILL=true
             REASON="exceeded max runtime (${MAX_RUNTIME_HOURS}h safety cap)"
-        elif [ "${GPU_UTIL:-0}" -le "$GPU_ACTIVE_THRESHOLD" ] && [ "${RUNTIME_MIN:-0}" -gt "$IDLE_THRESHOLD_MIN" ]; then
+
+        # Rule 3: Health not responding after safe window - warn but don't auto-kill
+        elif [ "$HEALTH_RESPONDING" = false ]; then
+            log_warn "    Status: UNHEALTHY (health not responding after ${RUNTIME_MIN} min)"
+            log_warn "    Container may have crashed. Check logs: ./scripts/910-OPS--runpod-logs.sh"
+            # Don't auto-kill - might be legitimate slow startup or network issue
+
+        # Rule 4: GPU is active - don't kill
+        elif [ "${GPU_UTIL:-0}" -gt "$GPU_ACTIVE_THRESHOLD" ]; then
+            log_ok "    Status: ACTIVE (GPU ${GPU_UTIL}% in use)"
+
+        # Rule 5: Idle too long - kill
+        elif [ "${RUNTIME_MIN:-0}" -gt "$IDLE_THRESHOLD_MIN" ]; then
             SHOULD_KILL=true
-            REASON="idle for ${RUNTIME_MIN} min (threshold: ${IDLE_THRESHOLD_MIN} min)"
+            REASON="idle for ${RUNTIME_MIN} min (GPU ${GPU_UTIL}%, threshold: ${IDLE_THRESHOLD_MIN} min)"
+
+        # Rule 6: Running but not idle long enough yet
         else
-            log_ok "    Status: OK"
+            log_ok "    Status: OK (idle ${RUNTIME_MIN} min, kill threshold: ${IDLE_THRESHOLD_MIN} min)"
         fi
 
         # Log the check event
         if type log_runpod_check &>/dev/null; then
             CHECK_STATUS="ok"
             [ "${GPU_UTIL:-0}" -gt "$GPU_ACTIVE_THRESHOLD" ] && CHECK_STATUS="active"
-            [ "${RUNTIME_MIN:-0}" -lt "$MIN_RUNTIME_MIN" ] && CHECK_STATUS="starting"
+            [ "${RUNTIME_MIN:-0}" -lt "$MIN_SAFE_RUNTIME_MIN" ] && CHECK_STATUS="starting"
             [ "$SHOULD_KILL" = true ] && CHECK_STATUS="idle"
             log_runpod_check "$POD_ID" "$CHECK_STATUS" "${GPU_UTIL:-0}" "${RUNTIME_MIN:-0}"
         fi
@@ -269,8 +298,8 @@ check_aws() {
         SHOULD_KILL=false
         REASON=""
 
-        if [ "${RUNTIME_MIN:-0}" -lt "$MIN_RUNTIME_MIN" ]; then
-            log_ok "    Status: STARTING (runtime < ${MIN_RUNTIME_MIN} min)"
+        if [ "${RUNTIME_MIN:-0}" -lt "$MIN_SAFE_RUNTIME_MIN" ]; then
+            log_ok "    Status: STARTING (runtime < ${MIN_SAFE_RUNTIME_MIN} min)"
         elif [ "${RUNTIME_MIN:-0}" -gt $((MAX_RUNTIME_HOURS * 60)) ]; then
             SHOULD_KILL=true
             REASON="exceeded max runtime (${MAX_RUNTIME_HOURS}h safety cap)"
