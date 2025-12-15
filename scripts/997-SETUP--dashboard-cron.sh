@@ -55,6 +55,52 @@ remove_cron() {
     echo -e "${GREEN}Done.${NC} Cron job removed."
 }
 
+show_config() {
+    echo ""
+    echo "==============================================================================="
+    echo " GPU Cost Guardian - Configuration"
+    echo "==============================================================================="
+    echo ""
+    echo "SCRIPTS:"
+    echo "  Cron Setup:      $SCRIPT_DIR/997-SETUP--dashboard-cron.sh"
+    echo "  Dashboard Gen:   $DASHBOARD_SCRIPT"
+    echo "  Watchdog:        $SCRIPT_DIR/999-WATCHDOG--gpu-cost-guardian.sh"
+    echo "  Event Logger:    $SCRIPT_DIR/lib/gpu-event-logger.sh"
+    echo ""
+    echo "FILES:"
+    echo "  Cron Log:        $LOG_FILE"
+    echo "  Event Log:       $SCRIPT_DIR/../logs/gpu-events.jsonl"
+    echo "  Local Dashboard: $SCRIPT_DIR/../artifacts/gpu-dashboard.html"
+    echo ""
+
+    # Load .env if exists
+    ENV_FILE="$SCRIPT_DIR/../.env"
+    if [ -f "$ENV_FILE" ]; then
+        source "$ENV_FILE"
+        echo "S3 CONFIG (from .env):"
+        echo "  S3 Bucket:       ${GPU_DASHBOARD_S3_BUCKET:-not set}"
+        echo ""
+        echo "URLS:"
+        if [ -n "${GPU_DASHBOARD_S3_BUCKET:-}" ]; then
+            echo "  Dashboard:       https://d2l28rla2hk7np.cloudfront.net/gpu-dashboard/index.html"
+            echo "  CloudDrive:      https://d2l28rla2hk7np.cloudfront.net/index.html"
+        fi
+    else
+        echo "ENV FILE: $ENV_FILE (not found)"
+    fi
+    echo ""
+    echo "CRON STATUS:"
+    if crontab -l 2>/dev/null | grep -q "$CRON_MARKER"; then
+        echo -e "  Status:          ${GREEN}INSTALLED${NC}"
+        echo "  Schedule:        Every 5 minutes (*/5 * * * *)"
+    else
+        echo -e "  Status:          ${YELLOW}NOT INSTALLED${NC}"
+    fi
+    echo ""
+    echo "==============================================================================="
+    echo ""
+}
+
 install_cron() {
     echo "Setting up GPU dashboard cron job..."
 
@@ -75,12 +121,9 @@ install_cron() {
     fi
 
     echo -e "${GREEN}Done.${NC} Cron job installed."
-    echo ""
-    echo "Dashboard will update every 5 minutes."
-    echo "Log file: $LOG_FILE"
-    echo ""
-    echo "To check status:  ./scripts/997-SETUP--dashboard-cron.sh --status"
-    echo "To remove:        ./scripts/997-SETUP--dashboard-cron.sh --remove"
+
+    # Show full configuration
+    show_config
 }
 
 # Parse arguments
@@ -91,11 +134,15 @@ case "${1:-}" in
     --status|-s)
         show_status
         ;;
+    --config|-c)
+        show_config
+        ;;
     --help|-h)
-        echo "Usage: $0 [--status|--remove|--help]"
+        echo "Usage: $0 [--status|--config|--remove|--help]"
         echo ""
-        echo "  (no args)   Install cron job (idempotent)"
+        echo "  (no args)   Install cron job (idempotent) and show config"
         echo "  --status    Show current cron status"
+        echo "  --config    Show full configuration"
         echo "  --remove    Remove cron job"
         echo "  --help      Show this help"
         ;;
