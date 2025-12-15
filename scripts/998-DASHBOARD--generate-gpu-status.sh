@@ -665,7 +665,10 @@ for pod_id, info in running_pods.items():
         continue
     if pod_id not in sessions:
         try:
-            created = datetime.fromisoformat(info['created'].replace('Z', '+00:00').replace('+00:00', ''))
+            # RunPod format: "2025-12-15 18:04:36.612 +0000 UTC"
+            created_str = info['created'].replace(' UTC', '').replace(' +0000', '')
+            # Now it's: "2025-12-15 18:04:36.612"
+            created = datetime.strptime(created_str.split('.')[0], '%Y-%m-%d %H:%M:%S')
             if created < start_time:
                 created = start_time
             sessions[pod_id] = {
@@ -675,8 +678,15 @@ for pod_id, info in running_pods.items():
                 'name': info['name'],
                 'running': True
             }
-        except:
-            pass
+        except Exception as e:
+            # Fallback: use start of window
+            sessions[pod_id] = {
+                'start': now - timedelta(minutes=5),
+                'end': now,
+                'provider': 'runpod',
+                'name': info['name'],
+                'running': True
+            }
 
 # Generate hour markers
 hours = []
