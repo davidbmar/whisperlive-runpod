@@ -254,15 +254,23 @@ cat > "$OUTPUT_FILE" << 'HTMLHEADER'
             margin-bottom: 20px;
         }
         .cost-warning {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid #ef4444;
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            border: none;
             border-radius: 12px;
-            padding: 16px;
+            padding: 16px 20px;
             margin-bottom: 20px;
-            color: #dc2626;
+            color: white;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
+            font-weight: 500;
+            box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+        }
+        .cost-warning code {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
         }
         .settings-table td { padding: 8px 0; }
         .settings-table td:first-child { color: #6b7280; }
